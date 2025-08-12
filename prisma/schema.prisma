@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?  @db.Text
+  content     String?  @db.Text
+  image       String?
+  venue       String?
+  address     String?
+  city        String
+  date        DateTime
+  endDate     DateTime?
+  tags        String[] @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets    Ticket[]
+  orders     Order[]
+  promoCodes PromoCode[]
+}
+
+model Ticket {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  price       Int // в копейках
+  quantity    Int
+  sold        Int     @default(0)
+  isActive    Boolean @default(true)
+  eventId     String
+  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+}
+
+model PromoCode {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  discountType String // 'percent' | 'fixed'
+  discountValue Int
+  maxUses      Int?
+  used         Int       @default(0)
+  isActive     Boolean   @default(true)
+  validFrom    DateTime?
+  validTo      DateTime?
+  eventId      String?
+  event        Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  orders Order[]
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  stripeSessionId  String?     @unique
+  paymentIntentId  String?
+  email            String
+  customerName     String
+  phone            String?
+  status           String      @default("pending") // 'pending' | 'paid' | 'canceled' | 'refunded'
+  totalAmount      Int // в копейках
+  currency         String      @default("RUB")
+  accessToken      String      @unique @default(uuid())
+  isUsed           Boolean     @default(false)
+  usedAt           DateTime?
+  eventId          String
+  event            Event       @relation(fields: [eventId], references: [id])
+  promoCodeId      String?
+  promoCode        PromoCode?  @relation(fields: [promoCodeId], references: [id])
+  createdAt        DateTime    @default(now())
+  paidAt           DateTime?
+  updatedAt        DateTime    @updatedAt
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id       String @id @default(cuid())
+  quantity Int
+  price    Int // цена на момент покупки
+  orderId  String
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+}
